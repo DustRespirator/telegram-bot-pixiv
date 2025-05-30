@@ -8,7 +8,7 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const PIXIV_REFRESH_TOKEN = process.env.PIXIV_REFRESH_TOKEN;
 const PIXIV_CLIENT_ID = process.env.PIXIV_CLIENT_ID;
 const PIXIV_CLIENT_SECRET = process.env.PIXIV_CLIENT_SECRET;
-const PIXIV_RESERVE_PROXY_URL= process.env.PIXIV_RESERVE_PROXY_URL;
+const PIXIV_REVERSE_PROXY_URL= process.env.PIXIV_REVERSE_PROXY_URL;
 
 // Bot
 const bot = new TelegramClient(TELEGRAM_BOT_TOKEN);
@@ -134,8 +134,8 @@ bot.on("inlineQuery", async (inlineQuery) => {
     .user.name --> user name
     */
     try {
-        const illustOriginalUrl = result.meta_single_page.original_image_url.replace("https://i.pximg.net/", PIXIV_RESERVE_PROXY_URL);
-        const illustThumbUrl = result.image_urls.large.replace("https://i.pximg.net/", PIXIV_RESERVE_PROXY_URL);
+        const illustOriginalUrl = result.meta_single_page.original_image_url.replace("https://i.pximg.net/", PIXIV_REVERSE_PROXY_URL);
+        const illustThumbUrl = result.image_urls.large.replace("https://i.pximg.net/", PIXIV_REVERSE_PROXY_URL);
         const illustPageUrl = `https://www.pixiv.net/artworks/${illustId}`;
         const authorUrl = `https://www.pixiv.net/users/${result.user.id}`;
         const illustCaptionRaw = trimIllustCaption(result.caption);
