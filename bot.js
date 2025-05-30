@@ -140,7 +140,7 @@ bot.on("inlineQuery", async (inlineQuery) => {
         const authorUrl = `https://www.pixiv.net/users/${result.user.id}`;
         const illustCaptionRaw = trimIllustCaption(result.caption);
         const illustCaption = `${result.title} by <a href="${authorUrl}">${result.user.name}</a>\n${illustPageUrl}\n${illustCaptionRaw}`;
-        console.log("illustCaption:", illustCaption);
+        //console.log("illustCaption:", illustCaption);
 
         return inlineQuery.answerQuery([
             {
@@ -161,3 +161,27 @@ bot.on("inlineQuery", async (inlineQuery) => {
 });
 
 bot.login();
+
+// Global uncaught error handler
+/*
+Prevent TelegramsJS throw error such as
+
+C:\Users\XXXXX\Code\telegram-bot-pixiv\node_modules\telegramsjs\dist\src\rest\Rest.js:86
+            throw new HTTPResponseError_1.HTTPResponseError(response, request);
+                  ^
+
+ErrorResponse[400]: Bad Request: can't parse inline query result: Can't parse entities: Unexpected end of name token at byte offset 27
+    at Rest.request (C:\Users\XXXXX\Code\telegram-bot-pixiv\node_modules\telegramsjs\dist\src\rest\Rest.js:86:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  description: "Bad Request: can't parse inline query result: Can't parse entities: Unexpected end of name token at byte offset 27",
+  code: 400,
+  parameters: undefined
+}
+*/
+process.on("unhandledRejection", (reason, promise) => {
+    console.error("Unhandled Rejection at:", promise, "reason:", reason);
+});
+
+process.on("uncaughtException", (error) => {
+    console.error("Uncaught Exception:", error);
+});
