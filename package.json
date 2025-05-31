@@ -1,6 +1,6 @@
 {
   "name": "telegram-bot-pixiv",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "",
   "main": "bot.js",
   "scripts": {
@@ -12,6 +12,7 @@
   "type": "module",
   "dependencies": {
     "dotenv": "^16.5.0",
+    "probe-image-size": "^7.2.3",
     "telegramsjs": "^4.9.0"
   }
 }

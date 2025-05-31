@@ -2,14 +2,24 @@
 
 An inline Telegram bot written in JavaScript. It is for downloading illustration only.
 
-I use [Telegramsjs](https://github.com/telegramsjs/Telegramsjs) to build this project.
+I use [Telegramsjs](https://github.com/telegramsjs/Telegramsjs) to build this project,
+
+and [probe-image-size](https://github.com/nodeca/probe-image-size) to get width and height of picture
+
 
 ## Installation
 
-Git
+1. Clone with Git
 
 ```bash
 git clone https://github.com/DustRespirator/telegram-bot-pixiv.git
+cd telegram-bot-pixiv
+```
+
+2. Install dependencies
+
+```bash
+npm install
 ```
 
 ## What you need to prepare
@@ -32,9 +42,9 @@ TODO
 
 ## TODO List
 
-Multiple-pic illustration support.
+~~Multiple-pic illustration support.~~ Done.
 
-Manga? maybe..
+Run in the docker?
 
 ## License
 

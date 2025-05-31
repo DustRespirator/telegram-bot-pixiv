@@ -1,9 +1,11 @@
 import { TelegramClient } from "telegramsjs";
 import dotenv from "dotenv";
+import { trimIllustId, trimIllustCaption } from "./src/utils.js";
+import probe from "probe-image-size";
 
 dotenv.config();
 
-// Token
+// Token and URL
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const PIXIV_REFRESH_TOKEN = process.env.PIXIV_REFRESH_TOKEN;
 const PIXIV_CLIENT_ID = process.env.PIXIV_CLIENT_ID;
@@ -78,33 +80,14 @@ async function fetchIllustData(illustId) {
     return data.illust;
 }
 
-// Regex match illust_id= or artworks/ and get id in the URL
-function trimIllustId(input) {
-    /*
-    Common type of Pixiv links
-    https://www.pixiv.net/en/artworks/61198649
-    https://www.pixiv.net/artworks/61198649
-    http://www.pixiv.net/member_illust.php?illust_id=61198649
-    http://www.pixiv.net/member_illust.php?mode=medium&illust_id=61198649
-    61198649
-    */
-    const match = input.match(/(?:illust_id=|artworks\/)?(\d{5,})/);
-    return match ? match[1] : null;
-}
-
-function trimIllustCaption(input) {
-    let output = "";
-    output = input.replace(/<br\s*\/?>/gi, "\n"); // Replace "<br />" with "\n", parse_mode: HTML does not support <br />
-    output = output.replace(/\s*(target|rel)=['"][^'"]*['"]/gi, "") // Remove "target='_blank'" and "rel='noopener noreferrer'" if exist.
-    return output;
-}
-
 bot.on("inlineQuery", async (inlineQuery) => {
+    // Get illustId
     const query = inlineQuery.query.trim();
     const illustId = trimIllustId(query);
     if (!illustId) {
         return inlineQuery.answerQuery([]);
     }
+    // Get illustData in JSON
     let result;
     try {
         result = await fetchIllustData(illustId);
@@ -114,6 +97,7 @@ bot.on("inlineQuery", async (inlineQuery) => {
     if (!result) {
         return inlineQuery.answerQuery([]);
     }
+
     /*
     Illustration info:
     .id --> illust id
@@ -125,36 +109,65 @@ bot.on("inlineQuery", async (inlineQuery) => {
     .page_count --> total number of pictures in the illustration
 
     Illustration URL:
-    .image_urls.large --> use as thumb
-    .meta_single_page.original_image_url --> original picture if only one pic
-    .meta_pages[] --> multiple pictures
+    When there is only one pic in illustration:
+    .image_urls.medium --> use as thumb
+    .meta_single_page.original_image_url --> original picture
+    When there are multiple pics in illustration:
+    .meta_pages --> multiple pictures
 
     Author info:
     .user.id --> user id
     .user.name --> user name
     */
+    const totalPages = result.page_count;
     try {
-        const illustOriginalUrl = result.meta_single_page.original_image_url.replace("https://i.pximg.net/", PIXIV_REVERSE_PROXY_URL);
-        const illustThumbUrl = result.image_urls.large.replace("https://i.pximg.net/", PIXIV_REVERSE_PROXY_URL);
         const illustPageUrl = `https://www.pixiv.net/artworks/${illustId}`;
         const authorUrl = `https://www.pixiv.net/users/${result.user.id}`;
         const illustCaptionRaw = trimIllustCaption(result.caption);
         const illustCaption = `${result.title} by <a href="${authorUrl}">${result.user.name}</a>\n${illustPageUrl}\n${illustCaptionRaw}`;
-        //console.log("illustCaption:", illustCaption);
 
-        return inlineQuery.answerQuery([
-            {
-                type: "photo",
-                parse_mode: "HTML",
-                id: illustId,
-                photo_file_id: illustId,
-                photo_width: result.width,
-                photo_height: result.height,
-                photo_url: illustOriginalUrl,
-                thumbnail_url: illustThumbUrl,
-                caption: illustCaption
-            }
-        ]);
+        if (totalPages === 1) {
+            const illustOriginalUrl = result.meta_single_page.original_image_url.replace("https://i.pximg.net/", PIXIV_REVERSE_PROXY_URL);
+            const illustThumbUrl = result.image_urls.medium.replace("https://i.pximg.net/", PIXIV_REVERSE_PROXY_URL);
+
+            await inlineQuery.answerQuery([
+                {
+                    type: "photo",
+                    parse_mode: "HTML",
+                    id: `${illustId}_0`,
+                    photo_file_id: `${illustId}_0`,
+                    photo_width: result.width,
+                    photo_height: result.height,
+                    photo_url: illustOriginalUrl,
+                    thumbnail_url: illustThumbUrl,
+                    caption: illustCaption
+                }
+            ]);
+        } else {
+            // If you want to display all pages in the illustration, remove .slice()
+            const results = await Promise.all(result.meta_pages.slice(0, 7).map(async (page, index) => {
+                const illustOriginalUrl = page.image_urls.original.replace("https://i.pximg.net/", PIXIV_REVERSE_PROXY_URL);
+                const illustThumbUrl = page.image_urls.medium.replace("https://i.pximg.net/", PIXIV_REVERSE_PROXY_URL);
+
+                // Get width and height because Telegram Bot API need variables to display.
+                const imageSize = await probe(illustOriginalUrl);
+                const width = imageSize?.width || 10000;
+                const height = imageSize?.height || 10000;
+
+                return {
+                    type: "photo",
+                    parse_mode: "HTML",
+                    id: `${illustId}_${index}`,
+                    photo_file_id: `${illustId}_${index}`,
+                    photo_width: width,
+                    photo_height: height,
+                    photo_url: illustOriginalUrl,
+                    thumbnail_url: illustThumbUrl,
+                    caption: `${illustCaption}\n<b>This is Page ${index+1} of ${totalPages}</b>`
+                };
+            }));
+            inlineQuery.answerQuery(results);
+        }
     } catch (error) {
         console.error(error);
     }
