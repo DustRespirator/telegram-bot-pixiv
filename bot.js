@@ -1,6 +1,6 @@
 import { TelegramClient } from "telegramsjs";
 import dotenv from "dotenv";
-import { trimIllustId, trimIllustCaption } from "./src/utils.js";
+import { trimIllustId, trimIllustCaption, verifyOriginalIllust } from "./src/utils.js";
 import probe from "probe-image-size";
 
 dotenv.config();
@@ -119,40 +119,52 @@ bot.on("inlineQuery", async (inlineQuery) => {
     .user.id --> user id
     .user.name --> user name
     */
+   
+    // Basic info of illustration
     const totalPages = result.page_count;
+    const illustPageUrl = `https://www.pixiv.net/artworks/${illustId}`;
+    const authorUrl = `https://www.pixiv.net/users/${result.user.id}`;
+    const illustCaptionRaw = trimIllustCaption(result.caption);
+    const illustCaption = `${result.title} by <a href="${authorUrl}">${result.user.name}</a>\n${illustPageUrl}\n${illustCaptionRaw}`;
+    // Specific info depends on it is one pic or multi pics, jpg or png
+    // Telegram Bot API InlineQueryResultPhoto only accept .jpg not exceed 5MB
+    // Try to get original pic unless it is .png or exceed 5MB
+    // image_urls.medium and image_urls.large always return an URL end with "_master1200.jpg".
     try {
-        const illustPageUrl = `https://www.pixiv.net/artworks/${illustId}`;
-        const authorUrl = `https://www.pixiv.net/users/${result.user.id}`;
-        const illustCaptionRaw = trimIllustCaption(result.caption);
-        const illustCaption = `${result.title} by <a href="${authorUrl}">${result.user.name}</a>\n${illustPageUrl}\n${illustCaptionRaw}`;
-
         if (totalPages === 1) {
-            const illustOriginalUrl = result.meta_single_page.original_image_url.replace("https://i.pximg.net/", PIXIV_REVERSE_PROXY_URL);
+            const verifyPic = await verifyOriginalIllust(result.meta_single_page.original_image_url.replace("https://i.pximg.net/", PIXIV_REVERSE_PROXY_URL));
+            const illustOriginalUrl = (verifyPic ? result.meta_single_page.original_image_url : result.image_urls.large).replace("https://i.pximg.net/", PIXIV_REVERSE_PROXY_URL);
             const illustThumbUrl = result.image_urls.medium.replace("https://i.pximg.net/", PIXIV_REVERSE_PROXY_URL);
-
-            await inlineQuery.answerQuery([
-                {
-                    type: "photo",
-                    parse_mode: "HTML",
-                    id: `${illustId}_0`,
-                    photo_file_id: `${illustId}_0`,
-                    photo_width: result.width,
-                    photo_height: result.height,
-                    photo_url: illustOriginalUrl,
-                    thumbnail_url: illustThumbUrl,
-                    caption: illustCaption
-                }
-            ]);
+            
+            const singleResult = [{
+                type: "photo",
+                parse_mode: "HTML",
+                id: `${illustId}_0`,
+                photo_file_id: `${illustId}_0`,
+                photo_width: result.width,
+                photo_height: result.height,
+                photo_url: illustOriginalUrl,
+                thumbnail_url: illustThumbUrl,
+                caption: illustCaption
+            }]
+            await inlineQuery.answerQuery(singleResult);
         } else {
-            // If you want to display all pages in the illustration, remove .slice()
-            const results = await Promise.all(result.meta_pages.slice(0, 7).map(async (page, index) => {
-                const illustOriginalUrl = page.image_urls.original.replace("https://i.pximg.net/", PIXIV_REVERSE_PROXY_URL);
+            // If you want to display all pages in the illustration, remove .slice().
+            // By default I set it to display first 4 pages. It is enough for most of illustrations but it still could be timeout for some illustrations.
+            // It is not a good idea to download manga type illust because manga always has too many pages.
+            // For performance, only check the first page, if failed, choose .large for all pictures
+            const verifyFirstPic = await verifyOriginalIllust(result.meta_pages[0].image_urls.original.replace("https://i.pximg.net/", PIXIV_REVERSE_PROXY_URL));
+            const illustCaptionExtra = totalPages > 4 ? ", You should get all pages from Pixiv" : "";
+            const results = await Promise.all(result.meta_pages.slice(0, 4).map(async (page, index) => {
+                const illustOriginalUrl = (verifyFirstPic ? page.image_urls.original : page.image_urls.large).replace("https://i.pximg.net/", PIXIV_REVERSE_PROXY_URL);
                 const illustThumbUrl = page.image_urls.medium.replace("https://i.pximg.net/", PIXIV_REVERSE_PROXY_URL);
 
                 // Get width and height because Telegram Bot API need variables to display.
+                // Pixiv API only return the size of first picture in the illustration.
+                // Set 10000 as fallback. It is the maximum size Telegram Bot API accpets under inline mode.
                 const imageSize = await probe(illustOriginalUrl);
                 const width = imageSize?.width || 10000;
-                const height = imageSize?.height || 10000;
+                const height = imageSize?.height || 10000;              
 
                 return {
                     type: "photo",
@@ -163,10 +175,10 @@ bot.on("inlineQuery", async (inlineQuery) => {
                     photo_height: height,
                     photo_url: illustOriginalUrl,
                     thumbnail_url: illustThumbUrl,
-                    caption: `${illustCaption}\n<b>This is Page ${index+1} of ${totalPages}</b>`
+                    caption: `${illustCaption}\n<b>This is the Page ${index+1} of ${totalPages}</b><b>${illustCaptionExtra}</b>`
                 };
             }));
-            inlineQuery.answerQuery(results);
+            await inlineQuery.answerQuery(results);
         }
     } catch (error) {
         console.error(error);
