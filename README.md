@@ -13,6 +13,7 @@ and [probe-image-size](https://github.com/nodeca/probe-image-size) to get width 
 
 ```bash
 git clone https://github.com/DustRespirator/telegram-bot-pixiv.git
+
 cd telegram-bot-pixiv
 ```
 
@@ -36,16 +37,16 @@ Put all of them above in .env and that's it.
 
 ## Usage
 
+Run on local:
+
 ```bash
-TODO
+npm start
 ```
+
+Or docker...
 
 ## TODO List
 
 ~~Multiple-pic illustration support.~~ Done.
 
-Run in the docker?
-
-## License
-
-[MIT](https://choosealicense.com/licenses/mit/)
+~~Run in the docker?~~ It works. just DIY.
